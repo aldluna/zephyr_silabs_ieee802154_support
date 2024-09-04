@@ -214,6 +214,15 @@
 		};
 	};
 
+	rail: rail@54000000{
+        compatible = "silabs,rail";
+        status = "okay";
+        reg = <0x54000000 0x800>;
+        ieee802154: ieee802154{
+            compatible = "silabs,rail-ieee802154";
+            status = "disabled";
+        };
+    };
 
 	bt_hci_silabs: bt_hci_silabs {
 		compatible = "silabs,bt-hci";
