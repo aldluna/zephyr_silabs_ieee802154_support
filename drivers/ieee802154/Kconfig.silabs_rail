@@ -1,0 +1,30 @@
+# Copyright (c) 2024 Daikin Comfort Technologies North America, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+# Silicon Labs kconfig file for ieee802154 RAIL interface
+
+menuconfig IEEE802154_SILABS_RAIL
+	bool "Silicon Labs ieee802154 RAIL support"
+	default y
+	depends on DT_HAS_SILABS_RAIL_IEEE802154_ENABLED
+		select SOC_SERIES_EFR32MG24
+        select SOC_GECKO_CUSTOM_RADIO_PHY
+
+if IEEE802154_SILABS_RAIL
+
+config IEEE802154_SILABS_RAIL_INIT_PRIO
+	int "Silicon Labs RAIL initialization priority"
+	default 80
+	help
+	  Set the initialization priority number. Do not change it unless
+	  you know what you are doing. It has to start before the net stack.
+
+config IEEE802154_EFR32_RX_STACK_SIZE
+	int "Driver's internal RX thread stack size"
+	default 6400
+	help
+	  This option sets the driver's stack size for its internal RX thread.
+	  The default value should be sufficient, but in case it proves to be
+	  a too little one, this option makes it easy to play with the size.
+
+endif

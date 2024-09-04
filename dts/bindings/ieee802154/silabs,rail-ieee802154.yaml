@@ -1,0 +1,8 @@
+# Copyright (c) 2024 Daikin Comfort Technologies North America, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Silicon Labs RAIL IEEE 802.15.4 driver
+
+compatible: "silabs,rail-ieee802154"
+
+include: base.yaml

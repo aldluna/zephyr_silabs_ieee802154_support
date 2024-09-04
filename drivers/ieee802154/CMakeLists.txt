@@ -11,11 +11,13 @@ zephyr_library_sources_ifdef(CONFIG_IEEE802154_CC13XX_CC26XX
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_CC13XX_CC26XX_SUB_GHZ
   ieee802154_cc13xx_cc26xx_subg.c
 )
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_CC2520		ieee802154_cc2520.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_DW1000		ieee802154_dw1000.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_KW41Z		ieee802154_kw41z.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_MCR20A		ieee802154_mcr20a.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_NRF5		ieee802154_nrf5.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_RF2XX		ieee802154_rf2xx.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_RF2XX		ieee802154_rf2xx_iface.c)
-zephyr_library_sources_ifdef(CONFIG_IEEE802154_TELINK_B91	ieee802154_b91.c)
+
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_CC2520		      ieee802154_cc2520.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_DW1000		      ieee802154_dw1000.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_KW41Z		      ieee802154_kw41z.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_MCR20A		      ieee802154_mcr20a.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_NRF5		        ieee802154_nrf5.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_RF2XX		      ieee802154_rf2xx.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_RF2XX		      ieee802154_rf2xx_iface.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_TELINK_B91	    ieee802154_b91.c)
+zephyr_library_sources_ifdef(CONFIG_IEEE802154_SILABS_RAIL    ieee802154_silabs_rail.c)
