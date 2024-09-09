@@ -38,55 +38,43 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "sl_rail_util_protocol.h"
 
 #include "ieee802154_silabs_rail.h"
-
+/* ######### efr32 driver structures ########### */
 /* ERF32 data structure */
 static struct efr32_data data;
 
 /* Enum declaration */
 static efr32_state rail_state;
 
-/* RAIL handler callback declaration */
+/* ######### RAIL config variables ########### */
+// RAIL handler callback declaration
 static void efr32_rail_cb(RAIL_Handle_t rail_handle, RAIL_Events_t a_events);
-/* RAIL config declartion */
+
+// RAIL config declartion */
 static RAIL_Config_t rail_config = {
 	.eventsCallback = &efr32_rail_cb,
 };
 
-/*##### RAIL api configuration #####*/
-/* CSMA configuration options */
+/* ########## RAIL Tx defines ########## */
+/* Maximum time to wait for RAIL to send the packet */
+#define TX_PACKET_SENT_TIMEOUT         K_MSEC(100)
+
+// CSMA configuration options
 static const RAIL_CsmaConfig_t rail_csma_config = RAIL_CSMA_CONFIG_802_15_4_2003_2p4_GHz_OQPSK_CSMA;
 
-/* RAIL IEE802154 config struct */
-static RAIL_IEEE802154_Config_t rail_ieee802154_config = {
-    .addresses = NULL,
-    .ackConfig = {
-      .enable = true,
-      .ackTimeout = 672,
-      .rxTransitions = {
-        .success = RAIL_RF_STATE_RX,
-        .error   = RAIL_RF_STATE_RX,
-      },
-      .txTransitions = {
-        .success = RAIL_RF_STATE_RX,
-        .error   = RAIL_RF_STATE_RX,
-      }
-    },
-    .timings = {
-      .idleToRx = 100,
-      .idleToTx = 100,
-      .rxToTx   = 192,
-      .txToRx   = 192,
-      .rxSearchTimeout     = 0,
-      .txToRxSearchTimeout = 0,
-    },
-    .framesMask          			   = RAIL_IEEE802154_ACCEPT_STANDARD_FRAMES,
-    .promiscuousMode     			   = false,
-    .isPanCoordinator    			   = false,
-    .defaultFramePendingInOutgoingAcks = false,
+/* Configuration structure for the LBT transmit algorithm */
+static const RAIL_LbtConfig_t rail_lbt_config = {
+	.lbtMinBoRand = 0,
+	.lbtMaxBoRand = 10,
+	.lbtTries = 5,
+	.lbtThreshold = -75,
+	.lbtBackoff = 320,   /* 20 symbols at 16 us/symbol */
+	.lbtDuration = 128,  /* 8 symbols at 16 us/symbol */
+	.lbtTimeout = 0,     /* No timeout */
 };
 
+/* ieee802154_radio_api callbacks */
 /* Get MAC address */
-static void *efr32_get_mac(uint8_t *mac_addr)
+static void efr32_get_mac(uint8_t *mac_addr)
 {
 	uint64_t uniqueID = SYSTEM_GetUnique();
 	memcpy(mac_addr, &uniqueID, sizeof(uniqueID));
@@ -215,16 +203,6 @@ static int efr32_start(const struct device *dev)
 /* API implementation: stop */
 static int efr32_stop(const struct device *dev)
 {
-#if 0
-    struct efr32_context *efr32 = dev->driver_data;
-    ARG_UNUSED(efr32);
-
-    rail_state = EFR32_STATE_DISABLED;
-
-    LOG_DBG("EFR32 802154 radio stopped");
-
-    return 0;
-#else
 	// RAIL status
 	RAIL_Status_t status = RAIL_STATUS_NO_ERROR;
 	// Init erf32 data struct
@@ -242,7 +220,6 @@ static int efr32_stop(const struct device *dev)
     }
 
 	return 0;
-#endif
 }
 
 /* API implementation: tx */
@@ -251,6 +228,7 @@ static int efr32_tx(const struct device *dev,
 		  			struct net_pkt *pkt,
 		  			struct net_buf *frag)
 {
+#if 0
 	struct efr32_data *efr32 = dev->data;
 
 	RAIL_TxOptions_t txOptions = RAIL_TX_OPTIONS_DEFAULT;
@@ -281,667 +259,60 @@ static int efr32_tx(const struct device *dev,
 	k_sem_give(&efr32->rx_wait);
 	LOG_DBG("Result: %d", efr32->tx_success);
     return efr32->tx_success ? 0 : -EBUSY;
-}
-
-#if 1
-static void efr32_rx(void *arg1, void *arg2, void *arg3)
-{
-    struct efr32_data *efr32 = (struct efr32_data *) arg1;
-
-    while (1)
-    {
-        LOG_DBG("Waiting for frame");
-        k_sem_take(&efr32->rx_wait, K_FOREVER);
-
-		LOG_DBG("Frame received!");
-
-        RAIL_Idle(efr32->rail_handle, RAIL_IDLE_ABORT, true);
-        RAIL_StartRx(efr32->rail_handle, efr32->channel, NULL);
-    }
-}
 #endif
-
-#define RAIL_IRQ_PRIO 0
-
-void ieee802154_gecko_irq_config(void)
-{
-	//IRQ_DIRECT_CONNECT(RFSENSE_IRQn, RAIL_IRQ_PRIO, RFSENSE_IRQHandler, RAIL_IRQ_FLAGS);
-	//irq_enable(RFSENSE_IRQn);
-	IRQ_DIRECT_CONNECT(AGC_IRQn, RAIL_IRQ_PRIO, AGC_IRQHandler, 0);
-	irq_enable(AGC_IRQn);
-	IRQ_DIRECT_CONNECT(BUFC_IRQn, RAIL_IRQ_PRIO, BUFC_IRQHandler, 0);
-	irq_enable(BUFC_IRQn);
-	IRQ_DIRECT_CONNECT(FRC_IRQn, RAIL_IRQ_PRIO, FRC_IRQHandler, 0);
-	irq_enable(FRC_IRQn);
-	IRQ_DIRECT_CONNECT(FRC_IRQn, RAIL_IRQ_PRIO, FRC_IRQHandler, 0);
-	irq_enable(FRC_IRQn);
-	IRQ_DIRECT_CONNECT(FRC_PRI_IRQn, RAIL_IRQ_PRIO, FRC_PRI_IRQHandler, 0);
-	irq_enable(FRC_PRI_IRQn);
-	IRQ_DIRECT_CONNECT(MODEM_IRQn, RAIL_IRQ_PRIO, MODEM_IRQHandler, 0);
-	irq_enable(MODEM_IRQn);
-	IRQ_DIRECT_CONNECT(PROTIMER_IRQn, RAIL_IRQ_PRIO, PROTIMER_IRQHandler, 0);
-	irq_enable(PROTIMER_IRQn);
-	IRQ_DIRECT_CONNECT(RAC_RSM_IRQn, RAIL_IRQ_PRIO, RAC_RSM_IRQHandler, 0);
-	irq_enable(RAC_RSM_IRQn);
-	IRQ_DIRECT_CONNECT(RAC_SEQ_IRQn, RAIL_IRQ_PRIO, RAC_SEQ_IRQHandler, 0);
-	irq_enable(RAC_SEQ_IRQn);
-	IRQ_DIRECT_CONNECT(SYNTH_IRQn, RAIL_IRQ_PRIO, SYNTH_IRQHandler, 0);
-	irq_enable(SYNTH_IRQn);
-}
-
-#if 0
-#define RAIL_IRQ_PRIO 0
-
-void ieee802154_gecko_irq_config(void)
-{
-	//IRQ_DIRECT_CONNECT(RFSENSE_IRQn, RAIL_IRQ_PRIO, RFSENSE_IRQHandler, RAIL_IRQ_FLAGS);
-	//irq_enable(RFSENSE_IRQn);
-	IRQ_DIRECT_CONNECT(AGC_IRQn, RAIL_IRQ_PRIO, AGC_IRQHandler, 0);
-	irq_enable(AGC_IRQn);
-	IRQ_DIRECT_CONNECT(BUFC_IRQn, RAIL_IRQ_PRIO, BUFC_IRQHandler, 0);
-	irq_enable(BUFC_IRQn);
-	IRQ_DIRECT_CONNECT(FRC_IRQn, RAIL_IRQ_PRIO, FRC_IRQHandler, 0);
-	irq_enable(FRC_IRQn);
-	IRQ_DIRECT_CONNECT(FRC_IRQn, RAIL_IRQ_PRIO, FRC_IRQHandler, 0);
-	irq_enable(FRC_IRQn);
-	IRQ_DIRECT_CONNECT(FRC_PRI_IRQn, RAIL_IRQ_PRIO, FRC_PRI_IRQHandler, 0);
-	irq_enable(FRC_PRI_IRQn);
-	IRQ_DIRECT_CONNECT(MODEM_IRQn, RAIL_IRQ_PRIO, MODEM_IRQHandler, 0);
-	irq_enable(MODEM_IRQn);
-	IRQ_DIRECT_CONNECT(PROTIMER_IRQn, RAIL_IRQ_PRIO, PROTIMER_IRQHandler, 0);
-	irq_enable(PROTIMER_IRQn);
-	IRQ_DIRECT_CONNECT(RAC_RSM_IRQn, RAIL_IRQ_PRIO, RAC_RSM_IRQHandler, 0);
-	irq_enable(RAC_RSM_IRQn);
-	IRQ_DIRECT_CONNECT(RAC_SEQ_IRQn, RAIL_IRQ_PRIO, RAC_SEQ_IRQHandler, 0);
-	irq_enable(RAC_SEQ_IRQn);
-	IRQ_DIRECT_CONNECT(SYNTH_IRQn, RAIL_IRQ_PRIO, SYNTH_IRQHandler, 0);
-	irq_enable(SYNTH_IRQn);
-}
-
-static RAIL_Status_t efr32_config_rail(const struct device *dev){
 	struct efr32_data *efr32 = dev->data;
+	uint8_t frame_len = frag->len + IEEE802154_FCS_LENGTH;
 	RAIL_Status_t status;
 
-	efr32->rail_handle = RAIL_Init(&rail_config, NULL);
-	if (efr32->rail_handle == NULL) {
-		LOG_DBG("Failed to get RAIL handle");
+	/* Write packet length at rail_tx_fifo[0] */
+	if (RAIL_WriteTxFifo(efr32->rail_handle, &frame_len, 1, true) != 1) {
+		LOG_DBG("Writing packet length to TxFifo failed");
 		return -EIO;
 	}
-	RAIL_Idle(efr32->rail_handle, RAIL_IDLE, true);
+	/* Add packet payload */
+	if (RAIL_WriteTxFifo(efr32->rail_handle, frag->data, frag->len, false)
+	    != frag->len) {
+		LOG_DBG("Writing packet payload to TxFifo failed");
+		return -EIO;
+	}
 
-	RAIL_EnablePaCal(true);
-	RAIL_ConfigCal(efr32->rail_handle, RAIL_CAL_ALL);
+	switch (mode) {
+	case IEEE802154_TX_MODE_DIRECT:
+		status = RAIL_StartTx(efr32->rail_handle, efr32->channel,
+				RAIL_TX_OPTIONS_DEFAULT, NULL);
+		break;
+	case IEEE802154_TX_MODE_CCA:
+		status = RAIL_StartCcaLbtTx(efr32->rail_handle,
+				efr32->channel,
+				RAIL_TX_OPTIONS_DEFAULT,
+				&rail_lbt_config,
+				NULL);
+		break;
+	case IEEE802154_TX_MODE_CSMA_CA:
+		status = RAIL_StartCcaCsmaTx(efr32->rail_handle,
+				efr32->channel,
+				RAIL_TX_OPTIONS_DEFAULT,
+				&rail_csma_config, NULL);
+		break;
+	case IEEE802154_TX_MODE_TXTIME:
+	case IEEE802154_TX_MODE_TXTIME_CCA:
+	default:
+		NET_ERR("TX mode %d not supported", mode);
+		return -ENOTSUP;
+	}
 
-	/* Configure RAIL callbacks */
-	RAIL_ConfigEvents(efr32->rail_handle, RAIL_EVENTS_ALL,
-			  RAIL_EVENT_RX_PACKET_RECEIVED |
-			  RAIL_EVENT_TX_PACKET_SENT |
-			  RAIL_EVENT_TX_ABORTED |
-			  RAIL_EVENT_TX_BLOCKED |
-			  RAIL_EVENT_TX_UNDERFLOW |
-			  RAIL_EVENT_TX_CHANNEL_BUSY |
-			  RAIL_EVENT_CAL_NEEDED);
-
-	RAIL_DECLARE_TX_POWER_VBAT_CURVES_ALT;
-	const RAIL_TxPowerCurvesConfigAlt_t tx_power_curves = RAIL_DECLARE_TX_POWER_CURVES_CONFIG_ALT;
-	status = RAIL_InitTxPowerCurvesAlt(&tx_power_curves);
 	if (status != RAIL_STATUS_NO_ERROR) {
-		LOG_DBG("RAIL_RAIL_InitTxPowerCurvesAlt returned an error %d", status);
+		LOG_ERR("Failed to start Tx");
 		return -EIO;
 	}
 
-	/* Initialize the PA */
-	RAIL_TxPowerConfig_t txPowerConfig = {
-		.mode = RAIL_TX_POWER_MODE_2P4_HP,
-		.voltage = 1800U,
-		.rampTime = 10U,
-	};
-
-	status = RAIL_ConfigTxPower(efr32->rail_handle, &txPowerConfig);
-	if (status != RAIL_STATUS_NO_ERROR) {
-		LOG_DBG("RAIL_ConfigTxPower returned an error %d", status);
+	/* Wait for the callback from the radio driver. */
+	if (0 != k_sem_take(&efr32->tx_wait, TX_PACKET_SENT_TIMEOUT)) {
+		LOG_DBG("Failed to take tx_wait semaphore");
 		return -EIO;
 	}
 
-	status = RAIL_SetTxPower(efr32->rail_handle, 255);
-	if (status != RAIL_STATUS_NO_ERROR) {
-		LOG_DBG("RAIL_SetTxPower returned an error %d", status);
-		return -EIO;
-	}
-
-	const RAIL_DataConfig_t rail_data_cfg = {
-		.txSource = TX_PACKET_DATA,
-		.rxSource = RX_PACKET_DATA,
-		.txMethod = PACKET_MODE,
-		.rxMethod = PACKET_MODE,
-	};
-
-	status = RAIL_ConfigData(efr32->rail_handle, &rail_data_cfg);
-	if (status != RAIL_STATUS_NO_ERROR) {
-		LOG_DBG("RAIL_ConfigData returned an error %d", status);
-		return -EIO;
-	}
-
-	RAIL_SetTxFifo(efr32->rail_handle, efr32->tx_buffer, 0, ERF32_TX_BUFFER_LENGTH);
-
-	return status;
-}
-
-
-static RAIL_Status_t efr32_config_ieee802154_2p4ghz(RAIL_Handle_t handle){
-	RAIL_Status_t status;
-
-	status = RAIL_IEEE802154_Init(handle, &rail_ieee802154_config);
-	if (RAIL_STATUS_NO_ERROR != status) {
-		(void) RAIL_IEEE802154_Deinit(handle);
-		LOG_DBG("RAIL_IEEE802154_Init returned an error %d", status);
-		return -EIO;
-	}
-	
-	status = RAIL_IEEE802154_Config2p4GHzRadio(handle);
-	if (RAIL_STATUS_NO_ERROR == status) {
-		LOG_DBG("RAIL_IEEE802154_Config2p4GHzRadio returned an error %d", status);
-		return -EIO;
-	}
-
-
-	return status;
-}
-
-void RAILCb_AssertFailed(RAIL_Handle_t railHandle, uint32_t errorCode){
-        
-	static const char* railErrorMessages[] = RAIL_ASSERT_ERROR_MESSAGES;
-	const char *errorMessage ="Unknown";
- 
-  	// If this error code is within the range of known error messages then use       
-	// the appropriate error message    
-  	if(errorCode < (sizeof (railErrorMessages) / sizeof(char*))){
-		errorMessage = railErrorMessages[errorCode];
-	}
-	printf(errorMessage);
-         
-	// Reset the chip since an assert is a fatal error
-	NVIC_SystemReset();
-}
-
-static int ieee802154_gecko_init(struct device *dev)
-{
-	struct efr32_data *efr32 = dev->data;
-	int ret;
-
-	k_sem_init(&efr32->tx_wait, 0, 1);
-
-	ret = efr32_config_ieee802154_2p4ghz(efr32->rail_handle);
-	if (ret != 0) {
-		LOG_ERR("%d: Failed to initialize RAIL", ret);
-		return ret;
-	}
-
-	ieee802154_gecko_irq_config();
-
-	ret = efr32_config_rail(dev);
-	if (ret != 0) {
-		LOG_ERR("%d: Failed to initialize IEEE 802.15.4 Radio", ret);
-		return ret;
-	}
-
-	LOG_INF("Device %s initialized", dev->name);
-
-	return 0;
-}
-#endif
-
-#if 1
-static void tx_power_config_update(const RAIL_TxPowerConfig_t *tx_pwr_config, int8_t tx_power, struct efr32_data *efr32){
-	RAIL_Status_t       status;
-    RAIL_TxPowerLevel_t tx_power_lvl;
-    RAIL_TxPower_t      tx_power_dbm = DBM_TO_DECI_DBM(tx_power);
-
-    tx_power_lvl = RAIL_GetTxPower(efr32->rail_handle);
-
-    // Always need to call RAIL_SetTxPowerDbm after RAIL_ConfigTxPower
-    // First need to get existing power setting and reassert value after config
-
-    if (tx_power_lvl != RAIL_TX_POWER_LEVEL_INVALID)
-    {
-        tx_power_dbm = RAIL_GetTxPowerDbm(efr32->rail_handle);
-    }
-
-    status = RAIL_ConfigTxPower(efr32->rail_handle, tx_pwr_config);
-	if (status != RAIL_STATUS_NO_ERROR)
-    {
-        LOG_ERR("Error with config data.");
-    }
-
-    status = RAIL_SetTxPowerDbm(efr32->rail_handle, tx_power_dbm);
-    if (status != RAIL_STATUS_NO_ERROR)
-    {
-        LOG_ERR("Error with config data.");
-    }
-}
-
-static RAIL_Handle_t efr32_init_rail(struct efr32_data *efr32){
-    RAIL_Status_t status;
-    RAIL_Handle_t handle;
-
-    handle = RAIL_Init(&efr32->rail_config, NULL);
-    if (handle == NULL)
-    {
-        LOG_ERR("Error with config data.");
-        return NULL;
-    }
-
-#if 0
-    status = RAIL_InitPowerManager();
-    OT_ASSERT(status == RAIL_STATUS_NO_ERROR);
-#endif // SL_CATALOG_POWER_MANAGER_PRESENT
-
-    status = RAIL_ConfigCal(handle, RAIL_CAL_ALL);
-    if (status != RAIL_STATUS_NO_ERROR)
-    {
-        LOG_ERR("Error with config calibrations.");
-        return NULL;
-    }
-
-    status = RAIL_SetPtiProtocol(handle, RAIL_PTI_PROTOCOL_THREAD);
-    if (status != RAIL_STATUS_NO_ERROR)
-    {
-        LOG_ERR("Error with Pti protocol set up");
-        return NULL;
-    }
-	
-    //status = RAIL_IEEE802154_Init(handle, &rail_ieee802154_config);
-    status = efr32_config_ieee802154_2p4ghz(handle);
-	if (status != RAIL_STATUS_NO_ERROR)
-    {
-        LOG_ERR("Error with RAIL IEE802154 Init.");
-        return NULL;
-    }
-
-#if 0
-    // Enhanced Frame Pending
-    status = RAIL_IEEE802154_EnableEarlyFramePending(handle, true);
-    OT_ASSERT(status == RAIL_STATUS_NO_ERROR);
-
-    status = RAIL_IEEE802154_EnableDataFramePending(handle, true);
-    OT_ASSERT(status == RAIL_STATUS_NO_ERROR);
-
-    // Copies of MAC keys for encrypting at the radio layer
-    memset(sMacKeys, 0, sizeof(sMacKeys));
-#endif // (OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2)
-
-    efr32->tx_buffer_size = RAIL_SetTxFifo(handle, efr32->tx_buffer, 0, sizeof(efr32->tx_buffer));
-    if (efr32->tx_buffer_size != sizeof(efr32->tx_buffer))
-    {
-        LOG_ERR("Error in Tx FIFO setup");
-        return NULL;
-    }
-
-    // Enable RAIL multi-timer
-    RAIL_ConfigMultiTimer(true);
-
-    return handle;
-}
-
-static void efr32_rail_config_load(struct efr32_data *efr32, int8_t aTxPower){
-	RAIL_Status_t        status;
-    RAIL_TxPowerConfig_t txPowerConfig = {SL_RAIL_UTIL_PA_SELECTION_2P4GHZ,
-                                          SL_RAIL_UTIL_PA_VOLTAGE_MV,
-                                          SL_RAIL_UTIL_PA_RAMP_TIME_US};
-
-    if (efr32->rail_channel_config != NULL)
-    {
-        status = RAIL_IEEE802154_SetPtiRadioConfig(efr32->rail_handle, RAIL_IEEE802154_PTI_RADIO_CONFIG_915MHZ_R23_NA_EXT);
-		if (status != RAIL_STATUS_NO_ERROR)
-    	{
-			LOG_ERR("Error with config data.");
-    	}
-
-        uint16_t firstChannel = 0xFF;
-        firstChannel = RAIL_ConfigChannels(efr32->rail_handle, efr32->rail_channel_config, NULL);
-		if (firstChannel != efr32->mChannelMin)
-    	{
-			LOG_ERR("Error with config data.");
-    	}
-        
-        txPowerConfig.mode = SL_RAIL_UTIL_PA_SELECTION_SUBGHZ;
-        status = RAIL_IEEE802154_ConfigGOptions(efr32->rail_handle, RAIL_IEEE802154_G_OPTION_GB868, RAIL_IEEE802154_G_OPTION_GB868);
-        if (status != RAIL_STATUS_NO_ERROR)
-    	{
-			LOG_ERR("Error with config data.");
-    	}
-    }
-    else
-    {
-#if 0
-        status = sl_rail_util_ieee802154_config_radio(gRailHandle);
-#else
-        status = RAIL_IEEE802154_Config2p4GHzRadio(efr32->rail_handle);
-#endif // SL_CATALOG_RAIL_UTIL_IEEE802154_PHY_SELECT_PRESENT
-        if (status != RAIL_STATUS_NO_ERROR)
-    	{
-			LOG_ERR("Error with config data.");
-    	}
-    }
-
-#if 0
-    // 802.15.4E support (only on platforms that support it, so error checking is disabled)
-    // Note: This has to be called after RAIL_IEEE802154_Config2p4GHzRadio due to a bug where this call
-    // can overwrite options set below.
-    RAIL_IEEE802154_ConfigEOptions(gRailHandle,
-                                   (RAIL_IEEE802154_E_OPTION_GB868 | RAIL_IEEE802154_E_OPTION_ENH_ACK),
-                                   (RAIL_IEEE802154_E_OPTION_GB868 | RAIL_IEEE802154_E_OPTION_ENH_ACK));
-#endif // (OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2)
-
-    if (aTxPower != 127)
-    {
-        tx_power_config_update(&txPowerConfig, aTxPower, efr32);
-    }
-}
-
-static void efr32_config_init(struct efr32_data *efr32){
-	RAIL_Status_t status;
-
-	efr32->aEventCallback = efr32_rail_cb;
-	efr32->rail_config.protocol = NULL;
-	efr32->rail_config.scheduler = NULL;
-	efr32->rail_channel_config = NULL;
-	efr32->mChannelMin = 1; 
-	efr32->mChannelMin = 10;
-	
-	efr32->rail_handle = efr32_init_rail(efr32);
-	if (efr32->rail_handle != NULL)
-	{
-		LOG_ERR("Fail RAIL handle init");
-	}
-
-	status = RAIL_ConfigEvents(efr32->rail_handle, RAIL_EVENTS_ALL, 0);
-	if (status != RAIL_STATUS_NO_ERROR)
-	{
-		LOG_ERR("Fail RAIL on event config");
-	}
-  
-	//efr32_rail_config_load(efr32, 0);
-}
-
-#if 0
-/* Driver initialization */
-static int efr32_radio_init(const struct device *dev)
-{
-    RAIL_Status_t status;
-
-	struct efr32_data *efr32 = dev->data;
-
-    efr32_config_init(efr32);
-
-   //status = RAIL_ConfigSleep(efr32->rail_handle, RAIL_SLEEP_CONFIG_TIMERSYNC_ENABLED);
-   //if (status != RAIL_STATUS_NO_ERROR)
-	//{
-	//	LOG_ERR("Fail RAIL config sleep");
-	//}
-#if 0
-    sReceive.frame.mLength       = 0;
-    sReceive.frame.mPsdu         = NULL;
-
-    sReceiveAck.frame.mLength    = 0;
-    sReceiveAck.frame.mPsdu      = sReceiveAckPsdu;
-
-    // Initialize the queue for received packets.
-    queueStatus = queueInit(&sPendingCommandQueue, RADIO_REQUEST_BUFFER_COUNT);
-    OT_ASSERT(queueStatus);
-
-    // Specify a callback to be called upon queue overflow.
-    queueStatus = queueOverflow(&sPendingCommandQueue, &pendingCommandQueueOverflowCallback);
-    OT_ASSERT(queueStatus);
-
-    for (uint8_t i = 0; i < RADIO_REQUEST_BUFFER_COUNT; i++)
-    {
-        // Initialize the tx buffer params.
-        sTransmitBuffer[i].iid                = INVALID_INTERFACE_INDEX;
-        sTransmitBuffer[i].frame.mLength      = 0;
-        sTransmitBuffer[i].frame.mPsdu        = sTransmitPsdu[i];
-
-        sTransmitBuffer[i].frame.mInfo.mTxInfo.mIeInfo = &sTransmitIeInfo[i];
-    }
-
-    otLinkMetricsInit(EFR32_RECEIVE_SENSITIVITY);
-#endif
-    //sCurrentBandConfig = efr32RadioGetBandConfig(OPENTHREAD_CONFIG_DEFAULT_CHANNEL);
-    //OT_ASSERT(sCurrentBandConfig != NULL);
-
-    sl_rail_util_pa_init();
-    efr32_set_txpower(dev ,0);
-
-    status = RAIL_ConfigRxOptions(efr32->rail_handle,
-                                  RAIL_RX_OPTION_TRACK_ABORTED_FRAMES,
-                                  RAIL_RX_OPTION_TRACK_ABORTED_FRAMES);
-    if (status != RAIL_STATUS_NO_ERROR)
-	{
-		LOG_ERR("Fail RAIL config Rx Options");
-	}
-
-    //efr32PhyStackInit();
-    //efr32RadioSetCcaMode(SL_OPENTHREAD_RADIO_CCA_MODE); // Change for the following call
-	RAIL_IEEE802154_ConfigCcaMode(efr32->rail_handle, RAIL_IEEE802154_CCA_MODE_RSSI);
-
-    //sEnergyScanStatus = ENERGY_SCAN_STATUS_IDLE;
-
-#if 0
-    sChannelSwitchingCfg.bufferBytes = RAIL_IEEE802154_RX_CHANNEL_SWITCHING_BUF_BYTES;
-    sChannelSwitchingCfg.buffer      = sChannelSwitchingBuffer;
-    for (uint8_t i = 0U; i < RAIL_IEEE802154_RX_CHANNEL_SWITCHING_NUM_CHANNELS; i++)
-    {
-        sChannelSwitchingCfg.channels[i] = UNINITIALIZED_CHANNEL;
-    }
-#endif
-
-    // Initialize the queue for received packets.
-	k_fifo_init(&efr32->tx_fifo);
-
-    LOG_DBG("Initialized");
-	return 0;
-}
-#else
-
-#ifndef SL_COMPONENT_CATALOG_PRESENT
-__WEAK void sl_openthread_init(void)
-{
-    // Placeholder for enabling Silabs specific features available only through Simplicity Studio
-}
-#else
-void sl_openthread_init(void);
-#endif // SL_COMPONENT_CATALOG_PRESENT
-
-void RAILCb_AssertFailed(RAIL_Handle_t railHandle, uint32_t errorCode){
-        
-	static const char* railErrorMessages[] = RAIL_ASSERT_ERROR_MESSAGES;
-	const char *errorMessage ="Unknown";
- 
-  	// If this error code is within the range of known error messages then use       
-	// the appropriate error message    
-  	if(errorCode < (sizeof (railErrorMessages) / sizeof(char*))){
-		errorMessage = railErrorMessages[errorCode];
-	}
-	printf(errorMessage);
-         
-	// Reset the chip since an assert is a fatal error
-	NVIC_SystemReset();
-}
-
-/// RAIL schedule configuration
-static RAILSched_Config_t s_rail_sched_config;
-/// RAIL configuration
-static RAIL_Config_t s_rail_config = {
-  .eventsCallback = &efr32_rail_cb,
-  .scheduler = &s_rail_sched_config,
-};
-
-static int efr32_radio_init(const struct device *dev){
-	RAIL_Status_t status;
-	struct efr32_data *efr32 = dev->data;
-	efr32->rail_config = s_rail_config;
-
-	// intializes openthread
-	sl_openthread_init();
-
-	// Semaphore init
-	k_sem_init(&efr32->tx_wait, 0, 1);
-
-	// initializes the RAIL core
-	efr32->rail_handle = RAIL_Init(&efr32->rail_config,
-								NULL
-								);
-	LOG_DBG("s_rail_config pointer: %p", &s_rail_config);
-	LOG_DBG("efr32->rail_config pointer: %p", &efr32->rail_config);
-
-	if (efr32->rail_handle == NULL)
-	{
-		LOG_ERR("Fail init handle");
-	}
-
-	// configures the data management
-	RAIL_DataConfig_t data_config = {
-		.txSource = TX_PACKET_DATA,
-		.rxSource = RX_PACKET_DATA,
-		.txMethod = PACKET_MODE,
-		.rxMethod = PACKET_MODE,
-	};
-	status = RAIL_ConfigData(efr32->rail_handle, &data_config);
-	if((RAIL_STATUS_NO_ERROR != status)){
-		LOG_ERR("RAIL_ConfigData failed, return value: %d", status);
-	}
-				
-
-	// configures the channels
-	const RAIL_ChannelConfig_t *channel_config = NULL;
-	(void) RAIL_ConfigChannels(efr32->rail_handle,
-								channel_config,
-								NULL);
-
-	// configures the IEEE 802.15.4 protocol based on the chosen protocol by user
-	status = sl_rail_util_protocol_config(efr32->rail_handle,
-	(sl_rail_util_protocol_type_t) SL_RAIL_UTIL_PROTOCOL_IEEE802154_2P4GHZ);
-	if((RAIL_STATUS_NO_ERROR != status)){
-		LOG_ERR("sl_rail_util_protocol_config failed, return value: %d", status);
-	}
-
-	// configures RAIL calibration
-	status = RAIL_ConfigCal(efr32->rail_handle,
-							0U
-							| (0
-								? RAIL_CAL_TEMP : 0U)
-							| (0
-								? RAIL_CAL_ONETIME : 0U));
-	if((RAIL_STATUS_NO_ERROR != status)){
-		LOG_ERR("RAIL_ConfigCal failed, return value: %d", status);
-	}
-
-	// configures the using RAIL events
-	status = RAIL_ConfigEvents(efr32->rail_handle,
-								RAIL_EVENTS_ALL,
-								RAIL_EVENT_RX_PACKET_RECEIVED
-								| RAIL_EVENT_TX_PACKET_SENT
-								| RAIL_EVENT_CAL_NEEDED
-								| RAIL_EVENT_TXACK_PACKET_SENT
-								| RAIL_EVENT_RX_PACKET_ABORTED
-								| RAIL_EVENT_RX_FRAME_ERROR
-								| RAIL_EVENT_RX_FIFO_OVERFLOW
-								| RAIL_EVENT_RX_ADDRESS_FILTERED
-								| RAIL_EVENT_RX_SCHEDULED_RX_MISSED
-								| RAIL_EVENT_TX_ABORTED
-								| RAIL_EVENT_TX_BLOCKED
-								| RAIL_EVENT_TX_UNDERFLOW
-								| RAIL_EVENT_TX_CHANNEL_BUSY
-								| RAIL_EVENT_TX_SCHEDULED_TX_MISSED
-								| RAIL_EVENT_TXACK_ABORTED
-								| RAIL_EVENT_TXACK_BLOCKED
-								| RAIL_EVENT_TXACK_UNDERFLOW
-								);
-	
-	ieee802154_gecko_irq_config();
-
-	k_thread_create(&efr32->rx_thread, efr32->rx_stack,
-		2048, efr32_rx, efr32, NULL, NULL,
-		K_PRIO_COOP(2), 0, K_NO_WAIT);
-
-	k_thread_name_set(&efr32->rx_thread, "efr32_rx");
-	
-	LOG_DBG("Initialized");
-	return 0;
-}
-#endif
-#endif
-
-static void efr32_rail_cb(RAIL_Handle_t rail_handle, RAIL_Events_t events)
-{
-    LOG_DBG("Processing events 0x%llX", events);
-
-	if (events & RAIL_EVENT_RX_PACKET_RECEIVED) {
-		LOG_DBG("Received packet frame");
-		//RAIL_RxPacketHandle_t packetHandle = RAIL_RX_PACKET_HANDLE_INVALID;
-		//RAIL_RxPacketInfo_t packetInfo;
-		//RAIL_RxPacketDetails_t packetDetails;
-		//RAIL_Status_t status;
-		//uint16_t length;
-		//packetHandle = RAIL_GetRxPacketInfo(efr32_data.rail_handle, RAIL_RX_PACKET_HANDLE_OLDEST, &packetInfo);
-	}
-	if (events & RAIL_EVENT_RX_PACKET_ABORTED) {
-		LOG_DBG("RX packet aborted");
-	}
-	if (events & RAIL_EVENT_RX_FRAME_ERROR) {
-		LOG_DBG("RX frame error");
-	}
-	if (events & RAIL_EVENT_RX_FIFO_OVERFLOW) {
-		LOG_DBG("RX FIFO overflow");
-	}
-	if (events & RAIL_EVENT_RX_ADDRESS_FILTERED) {
-		LOG_DBG("RX Address filtered");
-	}
-    	if (events & RAIL_EVENT_TX_PACKET_SENT) {
-		LOG_DBG("TX packet sent");
-	}
-	if (events & RAIL_EVENT_TX_ABORTED) {
-		LOG_DBG("TX was aborted");
-	}
-	if (events & RAIL_EVENT_TX_BLOCKED) {
-		LOG_DBG("TX is blocked");
-	}
-	if (events & RAIL_EVENT_TX_UNDERFLOW) {
-		LOG_DBG("TX is underflow");
-	}
-	if (events & RAIL_EVENT_TX_CHANNEL_BUSY) {
-		LOG_DBG("TX channel busy");
-	}
-
-	if (events & RAIL_EVENT_TXACK_PACKET_SENT) {
-		LOG_DBG("TXACK packet sent");
-	}
-	if (events & RAIL_EVENT_TXACK_ABORTED) {
-		LOG_DBG("TXACK aborted");
-	}
-    	if (events & RAIL_EVENT_TXACK_BLOCKED) {
-		LOG_DBG("TXACK blocked");
-	}
-	if (events & RAIL_EVENT_TXACK_UNDERFLOW) {
-		LOG_DBG("TXACK underflow");
-	}
-
-    if (events & RAIL_EVENT_TX_FIFO_ALMOST_EMPTY) {
-        LOG_DBG("TX FIFO almost empty");
-	}
-	if (events & RAIL_EVENT_RX_FIFO_ALMOST_FULL) {
-		LOG_DBG("RX FIFO almost full");
-	}
-	if (events & RAIL_EVENT_RX_ACK_TIMEOUT) {
-		LOG_DBG("RX AutoAck occurred");
-	}
-	if (events & RAIL_EVENT_CAL_NEEDED) {
-		LOG_DBG("Calibration needed");
-		RAIL_Calibrate(rail_handle, NULL, RAIL_CAL_ALL_PENDING);
-	}
-	if (events & RAIL_EVENT_IEEE802154_DATA_REQUEST_COMMAND) {
-		LOG_DBG("IEEE802154 Data request command");
-	}
+	return efr32->tx_status;
 }
 
 /* API implementation: ed_scan */
@@ -981,6 +352,287 @@ static int efr32_attr_get(const struct device *dev, enum ieee802154_attr attr,
 
 /* driver-allocated attribute memory - constant across all driver instances */
 IEEE802154_DEFINE_PHY_SUPPORTED_CHANNELS(drv_attr, 11, 26);
+
+/* ######### Interrupt set up ########### */
+#define RAIL_IRQ_PRIO 0
+
+static void ieee802154_gecko_irq_config(void)
+{
+	//IRQ_DIRECT_CONNECT(RFSENSE_IRQn, RAIL_IRQ_PRIO, RFSENSE_IRQHandler, RAIL_IRQ_FLAGS);
+	//irq_enable(RFSENSE_IRQn);
+	IRQ_DIRECT_CONNECT(AGC_IRQn, RAIL_IRQ_PRIO, AGC_IRQHandler, 0);
+	irq_enable(AGC_IRQn);
+	IRQ_DIRECT_CONNECT(BUFC_IRQn, RAIL_IRQ_PRIO, BUFC_IRQHandler, 0);
+	irq_enable(BUFC_IRQn);
+	IRQ_DIRECT_CONNECT(FRC_IRQn, RAIL_IRQ_PRIO, FRC_IRQHandler, 0);
+	irq_enable(FRC_IRQn);
+	IRQ_DIRECT_CONNECT(FRC_IRQn, RAIL_IRQ_PRIO, FRC_IRQHandler, 0);
+	irq_enable(FRC_IRQn);
+	IRQ_DIRECT_CONNECT(FRC_PRI_IRQn, RAIL_IRQ_PRIO, FRC_PRI_IRQHandler, 0);
+	irq_enable(FRC_PRI_IRQn);
+	IRQ_DIRECT_CONNECT(MODEM_IRQn, RAIL_IRQ_PRIO, MODEM_IRQHandler, 0);
+	irq_enable(MODEM_IRQn);
+	IRQ_DIRECT_CONNECT(PROTIMER_IRQn, RAIL_IRQ_PRIO, PROTIMER_IRQHandler, 0);
+	irq_enable(PROTIMER_IRQn);
+	IRQ_DIRECT_CONNECT(RAC_RSM_IRQn, RAIL_IRQ_PRIO, RAC_RSM_IRQHandler, 0);
+	irq_enable(RAC_RSM_IRQn);
+	IRQ_DIRECT_CONNECT(RAC_SEQ_IRQn, RAIL_IRQ_PRIO, RAC_SEQ_IRQHandler, 0);
+	irq_enable(RAC_SEQ_IRQn);
+	IRQ_DIRECT_CONNECT(SYNTH_IRQn, RAIL_IRQ_PRIO, SYNTH_IRQHandler, 0);
+	irq_enable(SYNTH_IRQn);
+}
+
+/* ########## Init helper functions ########## */
+// PA init function
+static void railInitPa(RAIL_Handle_t myRailHandle)
+{
+  // Initialize the RAIL Tx power curves for all PAs on this chip
+  const RAIL_TxPowerCurvesConfigAlt_t txPowerCurvesConfig = RAIL_TxPowerCurvesDcdc;
+  if (RAIL_InitTxPowerCurvesAlt(&txPowerCurvesConfig) != RAIL_STATUS_NO_ERROR) {
+    // Could not initialize transmit power curves so something is configured
+    // wrong. Please fix and rebuild.
+    while(1);
+  }
+
+  // Switch to the 2.4GHz HP PA powered off the 1.8V DCDC connection
+  RAIL_TxPowerConfig_t railTxPowerConfig = {
+    RAIL_TX_POWER_MODE_2P4GIG_HP, // 2.4GHz HP Power Amplifier mode
+    1800,                         // 1.8V vPA voltage for DCDC connection
+    10                            // Desired ramp time in us
+  };
+  if (RAIL_ConfigTxPower(myRailHandle, &railTxPowerConfig)
+      != RAIL_STATUS_NO_ERROR) {
+    // Error: The requested PA could not be selected. Fix your configuration
+    // and try again.
+    while(1);
+  }
+
+  // Set the output power to the maximum supported by this chip
+  RAIL_SetTxPower(myRailHandle, 255);
+}
+
+
+__WEAK void sl_openthread_init(void)
+{
+    // Placeholder for enabling Silabs specific features available only through Simplicity Studio
+}
+
+void RAILCb_AssertFailed(RAIL_Handle_t railHandle, uint32_t errorCode){
+        
+	static const char* railErrorMessages[] = RAIL_ASSERT_ERROR_MESSAGES;
+	const char *errorMessage ="Unknown";
+ 
+  	// If this error code is within the range of known error messages then use       
+	// the appropriate error message    
+  	if(errorCode < (sizeof (railErrorMessages) / sizeof(char*))){
+		errorMessage = railErrorMessages[errorCode];
+	}
+	LOG_DBG("Callback Error: %s", errorMessage);
+         
+	// Reset the chip since an assert is a fatal error
+	NVIC_SystemReset();
+}
+
+static RAIL_Status_t efr32_iee802154_init(const struct device *dev){
+    RAIL_Status_t status;
+	struct efr32_data *efr32 = dev->data;
+	efr32->rail_config = rail_config;
+
+    // intializes openthread
+	sl_openthread_init();
+    
+    efr32->rail_handle = RAIL_Init(&rail_config, NULL);
+
+    // configures the IEEE 802.15.4 protocol based on the chosen protocol by user
+	status = sl_rail_util_protocol_config(efr32->rail_handle,
+	(sl_rail_util_protocol_type_t) SL_RAIL_UTIL_PROTOCOL_IEEE802154_2P4GHZ);
+	if((RAIL_STATUS_NO_ERROR != status)){
+		LOG_ERR("sl_rail_util_protocol_config failed, return value: %d", status);
+        return status;
+	}
+
+    railInitPa(efr32->rail_handle);
+
+    RAIL_StateTransitions_t transitions = {RAIL_RF_STATE_RX, RAIL_RF_STATE_RX};
+    status = RAIL_SetRxTransitions(efr32->rail_handle, &transitions);
+    status = RAIL_SetTxTransitions(efr32->rail_handle, &transitions);
+    if((RAIL_STATUS_NO_ERROR != status)){
+		LOG_ERR("RAIL_SetRxTransitions failed, return value: %d", status);
+        return status;
+	}
+
+    /* Configure RAIL callbacks */
+	RAIL_ConfigEvents(efr32->rail_handle, RAIL_EVENTS_ALL,
+			  RAIL_EVENT_RX_PACKET_RECEIVED |
+			  RAIL_EVENT_TX_PACKET_SENT |
+			  RAIL_EVENT_TX_ABORTED |
+			  RAIL_EVENT_TX_BLOCKED |
+			  RAIL_EVENT_TX_UNDERFLOW |
+			  RAIL_EVENT_TX_CHANNEL_BUSY |
+			  RAIL_EVENT_CAL_NEEDED);
+
+    RAIL_SetTxFifo(efr32->rail_handle, efr32->tx_buffer, 0, ERF32_TX_BUFFER_LENGTH);
+    static const RAIL_DataConfig_t railDataConfig = {
+        .txSource = TX_PACKET_DATA,
+        .rxSource = RX_PACKET_DATA,
+        .txMethod = FIFO_MODE, //doesn't do anything
+        .rxMethod = FIFO_MODE,
+    };
+    status = RAIL_ConfigData(efr32->rail_handle, &railDataConfig);
+    RAIL_SetTxFifoThreshold(efr32->rail_handle, ERF32_TX_BUFFER_LENGTH - ERF32_TX_BUFFER_LENGTH / 10);
+    RAIL_SetRxFifoThreshold(efr32->rail_handle, ERF32_RX_BUFFER_LENGTH - ERF32_RX_BUFFER_LENGTH / 10);
+    RAIL_ConfigEvents(efr32->rail_handle, RAIL_EVENT_TX_FIFO_ALMOST_EMPTY|RAIL_EVENT_RX_FIFO_ALMOST_FULL,
+                        RAIL_EVENT_TX_FIFO_ALMOST_EMPTY|RAIL_EVENT_RX_FIFO_ALMOST_FULL);
+    
+    return status;
+}
+
+/* ########## Rx main thread ########## */
+static void efr32_rx_thread(void *arg1, void *arg2, void *arg3)
+{
+#if 0
+    // Do nothing
+    ARG_UNUSED(arg1);
+    ARG_UNUSED(arg2);
+    ARG_UNUSED(arg3);
+	while (1)
+	{
+		/* code */
+	}
+	
+#else
+	struct efr32_data *efr32 = (struct efr32_data *)arg1;
+	RAIL_RxPacketHandle_t packet_handle = (RAIL_RxPacketHandle_t) arg2;
+	RAIL_RxPacketInfo_t *packet_info = (RAIL_RxPacketInfo_t *) arg3;
+	struct net_pkt *pkt;
+
+	while (1){
+		pkt = NULL;
+		LOG_DBG("Rx packet received");
+
+		pkt = net_pkt_alloc_with_buffer(efr32->iface, packet_info->packetBytes,
+						AF_UNSPEC, 0, K_FOREVER);
+		if (pkt == NULL) {
+			LOG_ERR("No net_pkt available");
+			return;
+		}
+
+		/* Skip Frame Length field, 1 byte at index 0 */
+		if (net_pkt_write(pkt, packet_info->firstPortionData + 1,
+				packet_info->firstPortionBytes - 1)) {
+			goto drop;
+		}
+		if (net_pkt_write(pkt, packet_info->lastPortionData,
+				packet_info->packetBytes - packet_info->firstPortionBytes)) {
+			goto drop;
+		}
+
+		/* Fill packet information */
+		RAIL_RxPacketDetails_t packet_details = {
+			.timeReceived = {
+				.timePosition = RAIL_PACKET_TIME_AT_SYNC_END,
+			},
+		};
+		RAIL_GetRxPacketDetails(efr32->rail_handle, packet_handle, &packet_details);
+
+		net_pkt_set_ieee802154_lqi(pkt, packet_details.lqi);
+		net_pkt_set_ieee802154_rssi(pkt, packet_details.rssi);
+
+#if defined(CONFIG_NET_PKT_TIMESTAMP)
+		struct net_ptp_time timestamp = {
+			.second = packet_details.timeReceived.packetTime / USEC_PER_SEC,
+			.nanosecond =
+				(packet_details.timeReceived.packetTime % USEC_PER_SEC)
+				* NSEC_PER_USEC
+		};
+
+		net_pkt_set_timestamp(pkt, &timestamp);
+#endif
+
+		if (net_recv_data(efr32->iface, pkt) < 0) {
+			LOG_ERR("Packet dropped by NET stack");
+			goto drop;
+		}
+
+		continue;
+
+drop:
+	net_pkt_unref(pkt);
+	}
+#endif
+}
+
+/* ########## RAIL general callback ########## */
+static void efr32_rail_cb(RAIL_Handle_t rail_handle, RAIL_Events_t events)
+{
+	if (events & RAIL_EVENT_CAL_NEEDED) {
+		RAIL_Calibrate(rail_handle, NULL, RAIL_CAL_ALL_PENDING);
+	}
+
+	if (events & (RAIL_EVENT_TX_ABORTED |
+		     RAIL_EVENT_TX_BLOCKED |
+		     RAIL_EVENT_TX_UNDERFLOW |
+		     RAIL_EVENT_TX_CHANNEL_BUSY)) {
+		LOG_DBG("RAIL_Events_t 0x%llx", events);
+		data.tx_status = -EIO;
+		k_sem_give(&data.tx_wait);
+	}
+
+	if (events & RAIL_EVENT_TX_PACKET_SENT) {
+		LOG_DBG("RAIL_Events_t: TX_PACKET_SENT");
+		data.tx_status = 0;
+		k_sem_give(&data.tx_wait);
+	}
+
+	if (events & RAIL_EVENT_RX_PACKET_RECEIVED) {
+		RAIL_RxPacketInfo_t packet_info;
+		RAIL_RxPacketHandle_t rx_packet_handle;
+
+		LOG_DBG("RAIL_Events_t: RX_PACKET_RECEIVED");
+
+		rx_packet_handle = RAIL_GetRxPacketInfo(
+				data.rail_handle,
+				RAIL_RX_PACKET_HANDLE_NEWEST,
+				&packet_info);
+		if ((rx_packet_handle != RAIL_RX_PACKET_HANDLE_INVALID) &&
+		    (packet_info.packetStatus == RAIL_RX_PACKET_READY_SUCCESS)) {
+			//efr32_tx(&data, rx_packet_handle, &packet_info);
+		}
+	}
+}
+
+/* ########## Init Driver START ########## */
+#if 0
+static int efr32_radio_init(const struct device *dev){
+	struct efr32_data *efr32 = dev->data;
+
+	// Semaphore init
+	k_sem_init(&efr32->tx_wait, 0, 1);
+    efr32_iee802154_init(dev);
+	ieee802154_gecko_irq_config();
+	LOG_DBG("Initialized");
+	return 0;
+}
+#else
+static int efr32_radio_init(const struct device *dev){
+	struct efr32_data *efr32 = dev->data;
+
+	// Semaphore init
+	k_sem_init(&efr32->tx_wait, 0, 1);
+    efr32_iee802154_init(dev);
+	ieee802154_gecko_irq_config();
+
+	k_thread_create(&efr32->rx_thread, efr32->rx_stack,
+		2048, efr32_rx_thread, efr32, NULL, NULL,
+		K_PRIO_COOP(2), 0, K_NO_WAIT);
+
+	k_thread_name_set(&efr32->rx_thread, "efr32_rx");
+	
+	LOG_DBG("Initialized");
+	return 0;
+}
+#endif
+/* ########## Init Driver END ########## */
 
 /* IEEE802154 driver APIs structure */
 static const struct ieee802154_radio_api efr32_radio_api = {
