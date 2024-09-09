@@ -132,6 +132,10 @@
 	status = "okay";
 };
 
+&ieee802154 {
+    status = "okay";
+};
+
 &flash0 {
 	partitions {
 		compatible = "fixed-partitions";
