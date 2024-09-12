@@ -4,7 +4,7 @@
 #include <zephyr/net/openthread.h>
 #include <openthread/thread.h>
 
-LOG_MODULE_REGISTER(coap_client_utils, CONFIG_COAP_CLIENT_UTILS_LOG_LEVEL);
+LOG_MODULE_REGISTER(coap_client_utils, CONFIG_NET_UTILS_LOG_LEVEL);
 
 /* 1000 msec = 1 sec */
 #define BLINK_SLEEP_TIME_MS   1000
@@ -45,7 +45,7 @@ static void init_open_thread(void){
 }
 
 K_THREAD_DEFINE(blink_tid, 1024, blink_led, NULL, NULL, NULL, 7, 0, 0);
-K_THREAD_DEFINE(open_thread_tid, 4096, init_open_thread, NULL, NULL, NULL, 5, 0, 0);
+//K_THREAD_DEFINE(open_thread_tid, 4096, init_open_thread, NULL, NULL, NULL, 5, 0, 0);
 
 int main(void)
 {
@@ -63,6 +63,6 @@ int main(void)
     k_thread_start(blink_tid);
     printf("Start blink led example");
 
-    k_thread_start(open_thread_tid);
+    //k_thread_start(open_thread_tid);
     printf("Start open thread");
 }
