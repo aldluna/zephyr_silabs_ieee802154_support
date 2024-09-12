@@ -43,7 +43,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 static struct efr32_data data;
 
 /* Enum declaration */
-static efr32_state rail_state;
+//static efr32_state rail_state;
 
 /* ######### RAIL config variables ########### */
 // RAIL handler callback declaration
@@ -74,10 +74,13 @@ static const RAIL_LbtConfig_t rail_lbt_config = {
 
 /* ieee802154_radio_api callbacks */
 /* Get MAC address */
-static void efr32_get_mac(uint8_t *mac_addr)
+static inline uint8_t *efr32_get_mac(struct device *net)
 {
 	uint64_t uniqueID = SYSTEM_GetUnique();
-	memcpy(mac_addr, &uniqueID, sizeof(uniqueID));
+	uint8_t *mac = (uint8_t *)&uniqueID;
+	printk("mac:%d\n",uniqueID);
+	printk("mac:%d\n",*mac);
+	return mac;
 }
 
 /* API implementation: iface_init */
@@ -85,9 +88,9 @@ static void efr32_iface_init(struct net_if *iface)
 {
 	const struct device *dev = net_if_get_device(iface);
 	struct efr32_data *efr32 = dev->data;
-	efr32_get_mac(efr32->mac_addr);
+	uint8_t *mac = efr32_get_mac(dev);
 
-	net_if_set_link_addr(iface, efr32->mac_addr, ERF32_IEEE_ADDRESS_SIZE, NET_LINK_IEEE802154);
+	net_if_set_link_addr(iface, mac, ERF32_IEEE_ADDRESS_SIZE, NET_LINK_IEEE802154);
 	efr32->iface = iface;
 	ieee802154_init(iface);
 }
@@ -492,14 +495,19 @@ static void efr32_rx_thread(void *arg1, void *arg2, void *arg3)
 {
 #if 0
     // Do nothing
-    ARG_UNUSED(arg1);
-    ARG_UNUSED(arg2);
-    ARG_UNUSED(arg3);
-	while (1)
-	{
-		/* code */
-	}
-	
+    struct efr32_data *efr32 = (struct efr32_data *)arg1;
+
+    while (1)
+    {
+        LOG_DBG("Waiting for frame");
+        //k_sem_take(&efr32->rx_wait, K_FOREVER);
+
+		LOG_DBG("Frame received!");
+
+        RAIL_Idle(efr32->rail_handle, RAIL_IDLE_ABORT, true);
+        RAIL_StartRx(efr32->rail_handle, efr32->channel, NULL);
+		k_yield();
+    }
 #else
 	struct efr32_data *efr32 = (struct efr32_data *)arg1;
 	RAIL_RxPacketHandle_t packet_handle = (RAIL_RxPacketHandle_t) arg2;
@@ -596,18 +604,19 @@ static void efr32_rail_cb(RAIL_Handle_t rail_handle, RAIL_Events_t events)
 				&packet_info);
 		if ((rx_packet_handle != RAIL_RX_PACKET_HANDLE_INVALID) &&
 		    (packet_info.packetStatus == RAIL_RX_PACKET_READY_SUCCESS)) {
-			//efr32_tx(&data, rx_packet_handle, &packet_info);
+			efr32_rx_thread(&data, rx_packet_handle, &packet_info);
 		}
 	}
 }
 
 /* ########## Init Driver START ########## */
-#if 0
+#if 1
 static int efr32_radio_init(const struct device *dev){
 	struct efr32_data *efr32 = dev->data;
 
 	// Semaphore init
 	k_sem_init(&efr32->tx_wait, 0, 1);
+	k_sem_init(&efr32->rx_wait, 0, 1);
     efr32_iee802154_init(dev);
 	ieee802154_gecko_irq_config();
 	LOG_DBG("Initialized");
@@ -619,11 +628,12 @@ static int efr32_radio_init(const struct device *dev){
 
 	// Semaphore init
 	k_sem_init(&efr32->tx_wait, 0, 1);
+	k_sem_init(&efr32->rx_wait, 0, 1);
     efr32_iee802154_init(dev);
 	ieee802154_gecko_irq_config();
 
 	k_thread_create(&efr32->rx_thread, efr32->rx_stack,
-		2048, efr32_rx_thread, efr32, NULL, NULL,
+		800, efr32_rx_thread, efr32, NULL, NULL,
 		K_PRIO_COOP(2), 0, K_NO_WAIT);
 
 	k_thread_name_set(&efr32->rx_thread, "efr32_rx");
