@@ -86,7 +86,7 @@ static inline uint8_t *efr32_get_mac(struct device *net)
 /* API implementation: iface_init */
 static void efr32_iface_init(struct net_if *iface)
 {
-	const struct device *dev = net_if_get_device(iface);
+	struct device *dev = net_if_get_device(iface);
 	struct efr32_data *efr32 = dev->data;
 	uint8_t *mac = efr32_get_mac(dev);
 
