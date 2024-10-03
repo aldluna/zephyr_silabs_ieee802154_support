@@ -208,6 +208,7 @@ void soc_early_init_hook(void)
 {
 	/* handle chip errata */
 	CHIP_Init();
+	SystemInit();
 
 #ifdef CONFIG_CMU_NEED_LFXO
 	init_lfxo();

@@ -491,7 +491,7 @@ static RAIL_Status_t efr32_iee802154_init(const struct device *dev){
 }
 
 /* ########## Rx main thread ########## */
-static void efr32_rx_thread(void *arg1, void *arg2, void *arg3)
+static void efr32_rx_thread(void *arg1, RAIL_RxPacketHandle_t arg2, void *arg3)
 {
 #if 0
     // Do nothing
