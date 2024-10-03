@@ -25,6 +25,11 @@
 /* Add include for DTS generated information */
 #include <zephyr/devicetree.h>
 
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+#define SecureFault_IRQn -9
+#endif
+
+
 #endif  /* !_ASMLANGUAGE */
 
 #endif  /* _SILABS_EFR32MG24_SOC_H */
